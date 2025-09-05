@@ -1,45 +1,20 @@
 import streamlit as st
-from PyPDF2 import PdfReader
-import fitz  # PyMuPDF
+from upload_handler import handle_upload
+from extractor import extract_text
 
-# Constraints
-Max_file_size = 20  # MB
-Max_pages = 100
+st.title("AI Research Paper Assistant")
 
-# Validation function
-def validate_pdf(file):
-    if file is None:
-        return False, "No file uploaded."
+uploaded_files = st.file_uploader(
+    "Upload research papers", type=["pdf"], accept_multiple_files=True
+)
 
-    if not hasattr(file, "getbuffer"):  # ensures it's a Streamlit UploadedFile
-        return False, "Invalid file type. Please upload a PDF."
-
-    # Check size
-    size = len(file.getbuffer()) / (1024 * 1024)  # MB
-    if size > Max_file_size:
-        return False, f"File size exceeds {Max_file_size} MB limit."
-
-    # Check PDF pages
-    try:
-        reader = PdfReader(file)
-        num_pages = len(reader.pages)
-        if num_pages > Max_pages:
-            return False, f"File has {num_pages} pages, exceeds {Max_pages} pages limit."
-    except Exception as e:
-        return False, f"Error reading PDF file: {e}"
-
-    return True, "PDF is valid."
-
-
-# Streamlit UI
-st.title("Upload Your Research Paper")
-uploaded_file = st.file_uploader("Choose a PDF file", type="pdf")
-
-if uploaded_file:
-    # Open directly from bytes
-    doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
-    text = ""
-    for page in doc:
-        text += page.get_text("text") + "\n"
-    
-    st.text_area("Extracted Text", text[:2000])
+if uploaded_files:
+    for file in uploaded_files:
+        if handle_upload(file):
+            # Reset pointer after validation (PyPDF2 may advance the stream)
+            file.seek(0)
+            text = extract_text(file)
+            st.success(f"Extracted {len(text)} characters from {file.name}")
+            st.text_area("Preview", text[:2000])
+        else:
+            st.error(f"File '{file.name}' is invalid or too large.")
